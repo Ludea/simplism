@@ -21,9 +21,33 @@ jobs:
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
       - name: Install Helm
         uses: azure/setup-helm@v3
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.6.0
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.6.1        
+      - name: Run chart-testing (lint)
+        run: ct lint --target-branch release_chart
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.9.0
+      - name: Run chart-testing (install)
+        run: ct install --chart-dirs k8s/helm/simplism/ --charts k8s/helm/simplism/ 
+      - name: Get version
+        uses: mikefarah/yq@v4.42.1
         with:
-         charts_dir: k8s/helm
-        env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          cmd: echo "VERSION=$(yq .version k8s/helm/simplism/Chart.yaml)" >> $GITHUB_ENV        
+      - name: Package chart
+        run: helm package k8s/helm/simplism/
+      - name: Push
+        uses: cloudsmith-io/action@v0.5.4
+        with:
+          api-key: ${{ secrets.CLOUDSMITH_API_KEY }}
+          command: "push"
+          format: "helm"
+          owner: "ludea"
+          repo: "simplism"
+          republish: "true"
+          file: simplism-${{ env.VERSION }}.tgz
+#      - name: Run chart-releaser
+#        uses: helm/chart-releaser-action@v1.6.0
+#        with:
+#         charts_dir: k8s/helm
+#        env:
+#          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
